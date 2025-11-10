@@ -47,7 +47,6 @@ struct CreateTemplateView: View {
                     }
                     .onDelete { staged.remove(atOffsets: $0) }
                     .onMove { staged.move(fromOffsets: $0, toOffset: $1) }
-                    // Tip: EditButton() in the toolbar toggles delete/reorder UI
                 }
             }
         }
