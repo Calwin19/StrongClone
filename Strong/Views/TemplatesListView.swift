@@ -23,7 +23,8 @@ struct TemplatesListView: View {
                 NavigationLink(value: template.id) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(template.name).font(.headline)
-                        Text(summary(template)).font(.subheadline).foregroundStyle(.secondary)
+                        Text(summary(template))
+                            .font(.subheadline).foregroundStyle(.secondary)
                     }
                 }
             }
@@ -49,8 +50,8 @@ struct TemplatesListView: View {
     }
     
     private func summary(_ t: WorkoutTemplate) -> String {
-        if t.items.isEmpty { return "No items yet" }
-        return t.items.map { "\($0.exercise.name) \($0.targetSets)x \($0.targetReps)" }.joined(separator: " • ")
+        guard let s = store.summaries[t.id] else { return "—" }
+        return s.itemCount == 0 ? "No items yet" : "\(s.itemCount) items • total sets \(s.totalSets)"
     }
 }
 

@@ -13,7 +13,7 @@ import SwiftUI
 @MainActor
 final class TemplateStore: ObservableObject {
     @Published private(set) var templates: [WorkoutTemplate] = []
-    
+    @Published private(set) var summaries: [UUID: TemplateSummary] = [:]
     private let context: ModelContext
     
     init(context: ModelContext){
@@ -22,8 +22,16 @@ final class TemplateStore: ObservableObject {
     }
     
     func refresh() async {
-        let descriptor = FetchDescriptor<WorkoutTemplate>(sortBy: [SortDescriptor(\.name, order: .forward)])
-        do { templates = try context.fetch(descriptor) } catch { print("Fetch templates error: \(error)") }
+        let fd = FetchDescriptor<WorkoutTemplate>(sortBy: [SortDescriptor(\.name)])
+        do {
+            let ts = try context.fetch(fd)
+            templates = ts
+            summaries = Dictionary(uniqueKeysWithValues: ts.map { t in
+                let items = t.items
+                let total = items.reduce(0) { $0 + $1.targetSets }
+                return (t.id, TemplateSummary(itemCount: items.count, totalSets: total))
+            })
+        } catch { print("fetch error:", error) }
     }
     
     func addTemplate(name: String, stagedItems: [StagedItem]) {
@@ -42,20 +50,21 @@ final class TemplateStore: ObservableObject {
         Task { await refresh() }
     }
 
-    func deleteTemplate(at indexSet: IndexSet){
-        for idx in indexSet{ context.delete(templates[idx])}
+    func removeItem(in t: WorkoutTemplate, at indexSet: IndexSet) {
+        for i in indexSet { t.items.remove(at: i) }
         try? context.save()
-        Task { await refresh()}
+        let items = t.items
+        summaries[t.id] = .init(itemCount: items.count, totalSets: items.reduce(0) { $0 + $1.targetSets })
     }
-    
-    func removeItem(in template: WorkoutTemplate, at indexSet: IndexSet){
-        for index in indexSet { template.items.remove(at: index)}
+    func moveItem(in t: WorkoutTemplate, from s: IndexSet, to d: Int) {
+        t.items.move(fromOffsets: s, toOffset: d)
         try? context.save()
-        Task { await refresh()}
+        let items = t.items
+        summaries[t.id] = .init(itemCount: items.count, totalSets: items.reduce(0) { $0 + $1.targetSets })
     }
-    
-    func moveItem(in template: WorkoutTemplate, from source: IndexSet, to destination: Int) {
-        template.items.move(fromOffsets: source, toOffset: destination)
+
+    func deleteTemplate(at indexSet: IndexSet) {
+        for idx in indexSet { context.delete(templates[idx]) }
         try? context.save()
         Task { await refresh() }
     }
@@ -83,3 +92,5 @@ struct StagedItem: Identifiable, Hashable {
 }
 
 private extension String { func nilIfBlank() -> String? { let t = trimmingCharacters(in: .whitespacesAndNewlines); return t.isEmpty ? nil : t } }
+
+struct TemplateSummary { let itemCount: Int; let totalSets: Int }
